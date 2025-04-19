@@ -1,103 +1,189 @@
-import Image from "next/image";
+
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  getSensorReading,
+  getHistoricalData,
+  SensorReading,
+  HistoricalDataPoint,
+} from "@/services/power-sensor";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { format, startOfDay } from "date-fns";
+import { Power, Bolt, Calendar } from "lucide-react";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [sensorReading, setSensorReading] = useState<SensorReading | null>(null);
+  const [dailyKwh, setDailyKwh] = useState<number>(0);
+  const [historicalData, setHistoricalData] = useState<HistoricalDataPoint[]>([]);
+  useEffect(() => {
+    const fetchSensorData = async () => {
+      const reading = await getSensorReading();
+      setSensorReading(reading);
+    };
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+    const fetchHistoricalData = async () => {
+      const today = new Date();
+      const start = startOfDay(today);
+      const end = today;
+      const data = await getHistoricalData(start, end);
+      setHistoricalData(data);
+    };
+
+    fetchSensorData();
+    fetchHistoricalData();
+
+    // Fetch data every 5 seconds
+    const intervalId = setInterval(() => {
+      fetchSensorData();
+      fetchHistoricalData();
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    // Calculate daily kWh (example calculation - needs to be refined)
+    if (historicalData.length > 0) {
+      const totalWatts = historicalData.reduce((sum, dataPoint) => sum + dataPoint.watts, 0);
+      // Assuming data is in hourly intervals, convert watts to kWh
+      const kwh = totalWatts / 1000;
+      setDailyKwh(kwh);
+    }
+  }, [historicalData]);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Daily Consumption
+          </CardTitle>
+          <CardDescription>Used today</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-4xl font-semibold">{dailyKwh.toFixed(2)} kWh</div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Power className="h-5 w-5" />
+            Power Usage
+          </CardTitle>
+          <CardDescription>Power being used</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-4xl font-semibold">
+            {sensorReading ? `${sensorReading.watts} W` : "Loading..."}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="md:col-span-1">
+        <CardHeader>
+          <CardTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
+            <Bolt className="h-4 w-4" />
+            Kitchen Power
+          </CardTitle>
+          <CardDescription>240V 0.25A</CardDescription>
+        </CardHeader>
+        <CardContent>
+        {sensorReading ? (
+            <div className="grid gap-2">
+            <div className="flex justify-between">
+              <span>Power:</span>
+              <span>{sensorReading.watts} W</span>
+            </div>
+            <Separator />
+              <div className="flex justify-between">
+                <span>Voltage:</span>
+                <span>{sensorReading.voltage} V</span>
+              </div>
+              <Separator />
+              <div className="flex justify-between">
+                <span>Amperage:</span>
+                <span>{sensorReading.amperage} A</span>
+              </div>
+            </div>
+          ) : (
+            "Loading..."
+          )}
+        </CardContent>
+      </Card>
+
+       <Card className="md:col-span-1">
+        <CardHeader>
+          <CardTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
+            <Bolt className="h-4 w-4" />
+             Living Room
+          </CardTitle>
+          <CardDescription>240V 0.25A</CardDescription>
+        </CardHeader>
+        <CardContent>
+        {sensorReading ? (
+            <div className="grid gap-2">
+            <div className="flex justify-between">
+              <span>Power:</span>
+              <span>{sensorReading.watts} W</span>
+            </div>
+            <Separator />
+              <div className="flex justify-between">
+                <span>Voltage:</span>
+                <span>{sensorReading.voltage} V</span>
+              </div>
+              <Separator />
+              <div className="flex justify-between">
+                <span>Amperage:</span>
+                <span>{sensorReading.amperage} A</span>
+              </div>
+            </div>
+          ) : (
+            "Loading..."
+          )}
+        </CardContent>
+      </Card>
+
+
+      <Card className="md:col-span-1">
+        <CardHeader>
+          <CardTitle className="text-xl font-bold tracking-tight">Kitchen Power Usage</CardTitle>
+          <CardDescription>Power consumption over time</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={historicalData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="timestamp" tickFormatter={(date) => format(date, "HH:mm")} />
+              <YAxis />
+              <Tooltip labelFormatter={(date) => format(date, "HH:mm")} />
+              <Area type="monotone" dataKey="watts" stroke="#008080" fill="#008080" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <Card className="md:col-span-1">
+        <CardHeader>
+          <CardTitle className="text-xl font-bold tracking-tight">Living Room Power Usage</CardTitle>
+          <CardDescription>Power consumption over time</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={historicalData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="timestamp" tickFormatter={(date) => format(date, "HH:mm")} />
+              <YAxis />
+              <Tooltip labelFormatter={(date) => format(date, "HH:mm")} />
+              <Area type="monotone" dataKey="watts" stroke="#008080" fill="#008080" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
     </div>
   );
 }
